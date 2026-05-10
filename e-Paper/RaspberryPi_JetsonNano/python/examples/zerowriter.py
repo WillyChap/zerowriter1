@@ -63,7 +63,7 @@ class Menu:
             self.display_draw.text((10, y_position), prefix + item_text, font=font24, fill=0)
             y_position += 30  # Increment Y position for next menu item
 
-        partial_buffer = self.epd.getbuffer(self.display_image)
+        partial_buffer = self.epd.getbuffer(self.display_image.rotate(180))
         self.epd.display_Partial(partial_buffer)
         time.sleep(delay)
 
@@ -93,7 +93,7 @@ class Menu:
         temp_content = self.inputlabel + ": " + self.input_content + self.ending_content
         # Draw input line text
         self.display_draw.text((10, 270), str(temp_content), font=font24, fill=0)        
-        partial_buffer = self.epd.getbuffer(self.display_image)
+        partial_buffer = self.epd.getbuffer(self.display_image.rotate(180))
         self.epd.display_Partial(partial_buffer)
         time.sleep(delay)
 
@@ -115,11 +115,11 @@ class Menu:
         temp_content = text
         # Draw input line text
         self.display_draw.text((0, 150), str(temp_content), font=font24, fill=0)        
-        partial_buffer = self.epd.getbuffer(self.display_image)
+        partial_buffer = self.epd.getbuffer(self.display_image.rotate(180))
         self.epd.display_Partial(partial_buffer)
         time.sleep(2)
         self.display_draw.rectangle((0, 0, 400, 300), fill=255)  # Clear display
-        partial_buffer = self.epd.getbuffer(self.display_image)
+        partial_buffer = self.epd.getbuffer(self.display_image.rotate(180))
         self.epd.display_Partial(partial_buffer)
         time.sleep(delay)
 
@@ -386,11 +386,30 @@ class ZeroWriter:
         file_path = os.path.join(os.path.dirname(__file__), 'data', filename)
         try:
             with open(file_path, 'r') as file:
-                lines = file.readlines()
-                self.previous_lines = [line.strip() for line in lines]
-                self.input_content = ""
-                self.cursor_position = 0
-                self.consolemsg(filename)
+                paragraphs = file.readlines()
+            self.previous_lines = []
+            for para in paragraphs:
+                text = para.rstrip('\n')
+                words = [w for w in text.split(' ') if w]
+                if not words:
+                    # Blank line — preserve as empty paragraph break
+                    self.previous_lines.append('\n')
+                    continue
+                # Re-wrap the paragraph to fit the display width
+                current_line = ''
+                for word in words:
+                    test = word if not current_line else current_line + ' ' + word
+                    if len(test) <= self.chars_per_line:
+                        current_line = test
+                    else:
+                        if current_line:
+                            self.previous_lines.append(current_line)
+                        current_line = word
+                if current_line:
+                    self.previous_lines.append(current_line + '\n')
+            self.input_content = ""
+            self.cursor_position = 0
+            self.consolemsg(filename)
         except Exception as e:
             self.consolemsg(f"[Error loading file]")
         finally:
@@ -417,7 +436,7 @@ class ZeroWriter:
         self.epd.Clear
         self.display_draw.rectangle((0, 0, 400, 300), fill=255)  # Clear display
         self.display_draw.text((55, 150), "ZeroWriter Powering Off", font=font24, fill=0)
-        partial_buffer = self.epd.getbuffer(self.display_image)
+        partial_buffer = self.epd.getbuffer(self.display_image.rotate(180))
         self.epd.display_Partial(partial_buffer)
         time.sleep(1)
         self.epd.init()
@@ -427,16 +446,18 @@ class ZeroWriter:
 
     def save_previous_lines(self, file_path, lines):
       try:
-          # Ensure the directory exists
           os.makedirs(os.path.dirname(file_path), exist_ok=True)
-          # Check if the file is writable or create it if it doesn't exist
-          with open(file_path, 'a') as file:
-              pass
-          # Clear the file content before writing
           with open(file_path, 'w') as file:
               print("Saving to file:", file_path)
+              output = ""
               for line in lines:
-                  file.write(line + '\n')
+                  if line.endswith('\n'):
+                      # Hard paragraph break (Enter key) — emit as real newline
+                      output += line.rstrip('\n') + '\n'
+                  else:
+                      # Auto-wrapped line — join to next segment with a space
+                      output += line.rstrip() + ' '
+              file.write(output)
       except IOError as e:
           self.consolemsg("[Error saving file]")
           print("Failed to save file:", e)
@@ -485,7 +506,7 @@ class ZeroWriter:
             # Paste the QR code onto the display image
             self.display_image.paste(qr_img_converted, (qr_x, qr_y))
             # Update the display with the new image
-            partial_buffer = self.epd.getbuffer(self.display_image)
+            partial_buffer = self.epd.getbuffer(self.display_image.rotate(180))
             self.epd.display_Partial(partial_buffer)
             time.sleep(delay)
         except Exception as e:
@@ -504,7 +525,7 @@ class ZeroWriter:
         # print(temp)# to debug if you change the font parameters (size, chars per line, etc)
 
         for line in reversed(temp[-self.lines_on_screen:]):
-          self.display_draw.text((10, y_position), line[:self.chars_per_line], font=font24, fill=0)
+          self.display_draw.text((10, y_position), line.rstrip('\n')[:self.chars_per_line], font=font24, fill=0)
           y_position -= self.line_spacing
 
         #Display Console Message
@@ -514,7 +535,7 @@ class ZeroWriter:
             self.console_message = ""
         
         #generate display buffer for display
-        partial_buffer = self.epd.getbuffer(self.display_image)
+        partial_buffer = self.epd.getbuffer(self.display_image.rotate(180))
         self.epd.display_Partial(partial_buffer)
         self.last_display_update = time.time()
         self.display_updating = False
@@ -529,7 +550,7 @@ class ZeroWriter:
             temp_content = self.input_content[:cursor_index] + "|" + self.input_content[cursor_index:]
             self.display_draw.text((10, 270), str(temp_content), font=font24, fill=0)
             #self.updating_input_area = True
-            partial_buffer = self.epd.getbuffer(self.display_image)
+            partial_buffer = self.epd.getbuffer(self.display_image.rotate(180))
             self.epd.display_Partial(partial_buffer)
             self.updating_input_area = False
 
@@ -552,7 +573,7 @@ class ZeroWriter:
         #No characters on the line, move up to previous line
         elif len(self.previous_lines) > 0:
             self.input_content = ""
-            self.input_content = self.previous_lines[len(self.previous_lines)-1]
+            self.input_content = self.previous_lines[len(self.previous_lines)-1].rstrip('\n')
             self.previous_lines.pop(len(self.previous_lines)-1)
             self.cursor_position = len(self.input_content)
             self.needs_display_update = True
@@ -729,7 +750,9 @@ class ZeroWriter:
                 
             else:
                 # Add the input to the previous_lines array
-                self.previous_lines.append(self.input_content)
+                # Append \n to mark this as a hard paragraph break (Enter key),
+                # not an auto-wrap. Save logic uses this to join wrapped lines.
+                self.previous_lines.append(self.input_content + "\n")
                 self.input_content = "" #clears input content
                 self.cursor_position=0
                 #save the file when enter is pressed
